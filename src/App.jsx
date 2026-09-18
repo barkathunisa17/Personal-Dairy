@@ -1,3 +1,4 @@
+import { supabase } from "./supabaseClient";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import {
   BookHeart, Home, Search, Heart, Plus, X, Calendar as CalendarIcon,
@@ -690,34 +691,50 @@ function StatsView({ memories }) {
   );
 }
 
-/* ---------- Login ---------- */
+/* ---------- Login (real Supabase auth) ---------- */
 
 function LoginScreen({ onLogin }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
+    setError("");
+    setInfo("");
     if (!email.trim() || !password.trim()) {
-      setError("Enter an email and password to open your diary.");
+      setError("Enter an email and password to continue.");
       return;
     }
-    onLogin(remember);
+    setLoading(true);
+    if (isSignUp) {
+      const { error } = await supabase.auth.signUp({ email, password });
+      setLoading(false);
+      if (error) { setError(error.message); return; }
+      setInfo("Account created! Check your email if confirmation is needed, then log in.");
+      setIsSignUp(false);
+    } else {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      setLoading(false);
+      if (error) { setError(error.message); return; }
+      onLogin();
+    }
   };
 
   return (
     <div className="login-screen">
       <div className="login-card">
         <div className="login-mark"><BookHeart size={26} /></div>
-        <h2>Welcome back</h2>
+        <h2>{isSignUp ? "Create your account" : "Welcome back"}</h2>
         <p className="login-sub">Your diary stays locked until you sign in.</p>
         <form onSubmit={submit}>
           <label className="field">
-            <span>Email or username</span>
-            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+            <span>Email</span>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
           </label>
           <label className="field">
             <span>Password</span>
@@ -729,12 +746,14 @@ function LoginScreen({ onLogin }) {
             </div>
           </label>
           {error && <p className="field-error">{error}</p>}
-          <label className="remember-row">
-            <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} /> Remember me
-          </label>
-          <button className="btn-primary full" type="submit">Open my diary</button>
+          {info && <p className="hint">{info}</p>}
+          <button className="btn-primary full" type="submit" disabled={loading}>
+            {loading ? "Please wait…" : isSignUp ? "Sign up" : "Open my diary"}
+          </button>
         </form>
-        <p className="login-note"><Lock size={12} /> This is a demo login for the local preview. Connect Supabase or Firebase authentication later for real accounts.</p>
+        <p className="login-note" style={{ cursor: "pointer" }} onClick={() => { setIsSignUp(s => !s); setError(""); setInfo(""); }}>
+          {isSignUp ? "Already have an account? Log in" : "No account? Sign up"}
+        </p>
       </div>
     </div>
   );
@@ -785,6 +804,18 @@ export default function App() {
   const [randomPick, setRandomPick] = useState(null);
   const [saveNotice, setSaveNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Check if the person is already logged in (e.g. after a page refresh),
+  // and keep "stage" in sync if they log out from another tab.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) setStage("dashboard");
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session) setStage("home");
+    });
+    return () => listener.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -923,7 +954,14 @@ export default function App() {
               <t.icon size={16} /> {t.label}
             </button>
           ))}
-          <button className="mobile-menu-item" onClick={() => { setStage("home"); setMenuOpen(false); }}>
+          <button
+            className="mobile-menu-item"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              setStage("home");
+              setMenuOpen(false);
+            }}
+          >
             <LogOut size={16} /> Close diary
           </button>
         </div>
@@ -1157,6 +1195,7 @@ function GlobalStyle() {
       }
       .btn-primary { background: var(--rose-deep); color: #fff; }
       .btn-primary:hover { transform: translateY(-1px); background: var(--rose); }
+      .btn-primary:disabled { opacity: .6; cursor: default; transform: none; }
       .btn-primary.large { padding: 13px 28px; font-size: 1rem; }
       .btn-primary.full { width: 100%; justify-content: center; margin-top: .5rem; }
       .btn-ghost { background: transparent; color: var(--ink); border-color: var(--line); }

@@ -817,7 +817,13 @@ export default function App() {
     return () => listener.subscription.unsubscribe();
   }, []);
 
+  // Only load saved data once we KNOW the person is logged in — loading
+  // before that point silently fails and falls back to demo data, which
+  // then gets saved over the person's real data. Waiting for "dashboard"
+  // guarantees Supabase already knows who's logged in.
   useEffect(() => {
+    if (stage !== "dashboard") return;
+    setLoaded(false);
     (async () => {
       const t = await loadTheme();
       setTheme(t);
@@ -825,7 +831,7 @@ export default function App() {
       setMemories(stored && stored.length ? stored : SAMPLE_MEMORIES);
       setLoaded(true);
     })();
-  }, []);
+  }, [stage]);
 
   useEffect(() => {
     if (!loaded) return;

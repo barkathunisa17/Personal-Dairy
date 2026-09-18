@@ -943,6 +943,14 @@ export default function App() {
           <button className="icon-btn" onClick={() => setTheme(t => t === "light" ? "dark" : "light")} aria-label="Toggle theme">
             {theme === "light" ? <Moon size={18} /> : <Sun size={18} />}
           </button>
+          <button
+            className="icon-btn"
+            onClick={async () => { await supabase.auth.signOut(); setStage("home"); }}
+            aria-label="Log out"
+            title="Log out"
+          >
+            <LogOut size={18} />
+          </button>
           <button className="icon-btn menu-only" onClick={() => setMenuOpen(m => !m)} aria-label="Menu"><Menu size={18} /></button>
         </div>
       </header>
